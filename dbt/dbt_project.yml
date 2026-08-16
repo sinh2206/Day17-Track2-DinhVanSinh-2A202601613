@@ -17,6 +17,7 @@ flags:
 # `dbt run` bằng tay.
 vars:
   run_date: "2026-08-03"
+  lookback_days: 3
 
 models:
   lab17:

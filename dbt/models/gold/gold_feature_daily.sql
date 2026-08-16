@@ -4,7 +4,10 @@
 -- Mỗi ngày vận hành, model chỉ tính phần "mới". Câu hỏi là: "mới" nghĩa là gì?
 
 {{ config(
-    materialized = 'incremental'
+    materialized         = 'incremental',
+    unique_key           = ['event_date', 'customer_id'],
+    incremental_strategy = 'delete+insert',
+    on_schema_change     = 'fail'
 ) }}
 
 select
@@ -22,7 +25,9 @@ select
 from {{ ref('silver_events') }}
 
 {% if is_incremental() %}
-where event_date > (select max(event_date) from {{ this }})
+where event_date >= (
+    select coalesce(max(event_date), DATE '2026-08-03') from {{ this }}
+) - interval {{ var("lookback_days") }} day
 {% endif %}
 
 group by 1, 2, 3, 4
