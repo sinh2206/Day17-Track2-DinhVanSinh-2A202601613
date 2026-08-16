@@ -28,7 +28,7 @@ TABLE = "bronze_events_stream"
 
 DDL = f"""
 create table if not exists {TABLE} (
-    event_id      varchar,
+    event_id      varchar primary key,
     ticket_id     varchar,
     customer_id   varchar,
     customer_name varchar,
@@ -43,7 +43,18 @@ create table if not exists {TABLE} (
 def write_batch(con: duckdb.DuckDBPyConnection, batch: list[dict]) -> None:
     """Ghi một lô message xuống kho."""
     con.executemany(
-        f"insert into {TABLE} values (?, ?, ?, ?, ?, ?, ?, ?)",
+        f"""
+        insert into {TABLE}
+        values (?, ?, ?, ?, ?, ?, ?, ?)
+        on conflict (event_id) do update set
+            ticket_id     = excluded.ticket_id,
+            customer_id   = excluded.customer_id,
+            customer_name = excluded.customer_name,
+            event_type    = excluded.event_type,
+            latency_ms    = excluded.latency_ms,
+            event_time    = excluded.event_time,
+            _ingested_at  = excluded._ingested_at
+        """,
         [
             (
                 r["event_id"], r["ticket_id"], r["customer_id"], r["customer_name"],
@@ -81,9 +92,9 @@ def consume(
             batch_no += 1
 
             # ── vùng bạn được phép sắp xếp lại ────────────────────────────
-            consumer.commit()                 # (1) ghi nhận offset
+            write_batch(con, batch)            # (1) ghi dữ liệu
             maybe_crash(batch_no, crash_at)   # (2) sự cố có thể xảy ra ở đây
-            write_batch(con, batch)           # (3) ghi dữ liệu
+            consumer.commit()                 # (3) ghi nhận offset
             # ─────────────────────────────────────────────────────────────
 
             written += len(batch)
