@@ -6,7 +6,7 @@ models:
     description: "Trạng thái mới nhất của mỗi ticket, dựng từ CDC."
     config:
       contract:
-        enforced: false # <- trạng thái hiện tại của repo
+        enforced: true
     columns:
       - name: ticket_id
         data_type: varchar
@@ -21,6 +21,11 @@ models:
       - name: priority
         data_type: integer
         description: "1 = urgent … 4 = low. Hợp đồng với team backend."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4]
+              quote: false
       - name: category
         data_type: varchar
       - name: channel
@@ -55,3 +60,12 @@ models:
     columns:
       - name: transcript_id
         tests: [unique, not_null]
+
+  # ---------------------------------------------------------- quarantine
+  - name: quarantine_tickets
+    description: "Các bản ghi CDC bị loại vì priority không hợp lệ."
+    columns:
+      - name: ticket_id
+        tests: [not_null]
+      - name: cdc_seq
+        tests: [not_null]

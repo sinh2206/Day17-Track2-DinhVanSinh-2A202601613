@@ -22,6 +22,7 @@ Khung sẵn có bên dưới. Xem GUIDE.md mục "Nhiệm vụ 4" nếu cần ps
 from __future__ import annotations
 
 import pathlib
+import shutil
 import sys
 
 import duckdb
@@ -39,22 +40,29 @@ def main() -> int:
     n_src = len(list(SRC.glob("*.parquet")))
     print(f"  nguồn : {SRC}  ({n_src:,} file)")
 
-    # TODO(nhiệm vụ 4) --------------------------------------------------
-    #  con.execute(f'''
-    #      copy (
-    #          select * from read_parquet('{SRC}/*.parquet')
-    #          order by ...                 -- gom hàng cùng khách vào cạnh nhau
-    #      ) to '{DST}' (
-    #          format parquet,
-    #          partition_by (...),          -- cột mà dashboard lọc theo
-    #          overwrite_or_ignore,
-    #          row_group_size ...
-    #      )
-    #  ''')
-    # -------------------------------------------------------------------
-    print("\n  ⚠️  tools/compact.py chưa được viết — đây là nhiệm vụ 4.")
-    print("  Mở file này và điền phần TODO, rồi chạy lại `make compact`.")
-    print("  Khung code: PSEUDOCODE.md mục 'Nhiệm vụ 4'.\n")
+    if n_src == 0:
+        raise SystemExit(f"Không tìm thấy Parquet nguồn trong {SRC}")
+
+    # Tạo lại đích để lần chạy sau không giữ file/partition cũ.
+    shutil.rmtree(DST, ignore_errors=True)
+
+    con.execute(f"""
+        copy (
+            select *
+            from read_parquet('{SRC}/*.parquet')
+            order by event_date, customer_name
+        ) to '{DST}' (
+            format parquet,
+            partition_by (event_date),
+            overwrite_or_ignore,
+            row_group_size 8192
+        )
+    """)
+
+    n_dst = len(list(DST.rglob("*.parquet")))
+    print(f"  đích   : {DST}  ({n_dst:,} file)")
+    print("  đã partition theo event_date, sort theo customer_name, row_group_size=8192.\n")
+    con.close()
     return 0
 
 

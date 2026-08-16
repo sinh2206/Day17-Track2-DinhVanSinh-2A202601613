@@ -8,7 +8,24 @@
 
 {{ config(materialized = 'table') }}
 
-with ranked as (
+with normalized as (
+
+    select
+        *,
+        {{ normalize_priority('priority_raw') }} as priority
+    from {{ source('bronze', 'bronze_tickets_cdc') }}
+
+),
+
+valid as (
+
+    select *
+    from normalized
+    where priority is not null
+
+),
+
+ranked as (
 
     select
         *,
@@ -16,7 +33,7 @@ with ranked as (
             partition by ticket_id
             order by event_time desc, cdc_seq desc
         ) as _rn
-    from {{ source('bronze', 'bronze_tickets_cdc') }}
+    from valid
 
 ),
 
@@ -28,9 +45,7 @@ select
     customer_name,
     segment,
 
-    -- Nguồn thỉnh thoảng gửi giá trị không phải số. try_cast trả về NULL
-    -- thay vì làm job đổ vỡ, nên pipeline vẫn xanh.
-    try_cast(priority_raw as integer)                        as priority,
+    priority,
 
     category,
     channel,
