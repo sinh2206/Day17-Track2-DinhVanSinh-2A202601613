@@ -6,6 +6,9 @@
 
 ## 0 · Kết quả `make verify`
 
+<details>
+<summary>Dán nguyên output ba lần chạy vào đây</summary>
+
 ```text
 run 1/3 … 71.2s
 run 2/3 … 70.6s
@@ -33,6 +36,10 @@ dashboard rows scanned                      ✓ 5,000,000 → 9,324 (536.3×, c�
 DAG: catchup / max_active_runs              ✓ False / 1
 TỔNG KẾT: 4/4 tiêu chí đạt
 ```
+
+</details>
+
+Tổng kết: **4 / 4 tiêu chí đạt**
 
 ---
 
@@ -70,7 +77,14 @@ P99 là mốc vận hành có chi phí tính lại hữu hạn; dùng `max` dễ
 
 Bronze giữ nguyên payload để audit; Silver là ranh giới contract. Không dừng cả pipeline vì 312 record lỗi: chúng được đưa vào hàng đợi quarantine để xử lý, còn dữ liệu lành vẫn tới downstream.
 
-## 4 · Bài mở rộng trong `EXTRA.md`
+## 4 · *(mở rộng, không bắt buộc)* Bài trong `EXTRA.md`
+
+| | |
+|---|---|
+| **Bài đã làm** | A và B |
+| **Nguyên nhân** | Bài A gặp small-file problem và layout không hỗ trợ pruning; bài B commit offset trước khi ghi nên có nguy cơ mất dữ liệu. |
+| **Cách khắc phục** | A: compact theo partition `event_date`; B: ghi trước, commit sau và upsert idempotent theo `event_id`. |
+| **Bằng chứng** | A: 5.000.000 → 9.324 rows scanned, hash giữ nguyên; B: 20.000/20.000 hàng và khóa duy nhất. |
 
 ### A — Query dashboard chậm
 
