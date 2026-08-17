@@ -3,6 +3,9 @@
 
 Bạn KHÔNG cần sửa file này. Nó chạy một lần trong `make setup`.
 
+Thêm cờ --extra để sinh thêm data/gold_events/ (5.000 file Parquet) — chỉ
+cần cho bài mở rộng trong EXTRA.md, không cần cho ba nhiệm vụ chính.
+
 Ba nguồn được sinh ra:
 
   seed/tickets_cdc.jsonl   CDC từ Postgres  (op = c / u / d)
@@ -40,12 +43,12 @@ N_BAD_PRIORITY = 312  # bản ghi sai kiểu -> phải vào quarantine
 N_TRANSCRIPTS = 5_200
 CHUNKS_PER_TRANSCRIPT = 6
 
-ACME_EVENTS_PER_DAY = 12_000  # tạo skew ~40%
+ACME_EVENTS_PER_DAY = 3_500  # tạo skew ~40%
 N_LATE_ONLY_COMBOS = 455  # (ngày, khách) chỉ có dữ liệu về muộn -> 5% hàng bị mất
 LATE_RATE_PER_MILLE = 25  # thêm 2,5% bản ghi lẻ về muộn
 LAST_LATE_DAY_IDX = 10  # 2026-08-13: sau ngày này không sinh dữ liệu muộn
 
-N_GOLD_EVENT_FILES = 5_000  # mìn 4: thư mục 5.000 file nhỏ
+N_GOLD_EVENT_FILES = 5_000  # nhiệm vụ 4: thư mục gồm 5.000 file nhỏ
 
 PRIORITY_LABEL = {1: "urgent", 2: "high", 3: "medium", 4: "low"}
 BAD_PRIORITY_VALUES = ["P1", "P2", "0", "5", "-1", "", None, "unknown"]
@@ -221,7 +224,7 @@ def build(con: duckdb.DuckDBPyConnection) -> None:
         create or replace table combo as
         select d.event_date, d.day_idx, c.customer_id, c.customer_name, c.segment,
             case when c.customer_id = 'C0001' then {ACME_EVENTS_PER_DAY}
-                 else 15 + (hash(d.day_idx::varchar || '|n|' || c.customer_id) % 31)::int end as n_events,
+                 else 5 + (hash(d.day_idx::varchar || '|n|' || c.customer_id) % 9)::int end as n_events,
             hash(d.day_idx::varchar || '|c|' || c.customer_id) as ch
         from dim_date d cross join dim_customer c;
     """)
@@ -300,7 +303,7 @@ def write_cdc(con: duckdb.DuckDBPyConnection, path: pathlib.Path) -> int:
             elif day >= SCHEMA_CHANGE_DAY:
                 priority = PRIORITY_LABEL[pcode]  # backend đổi sang nhãn chuỗi
             else:
-                priority = pcode  # số nguyên như hợp đồng ban đầu
+                priority = pcode  # số nguyên như contract ban đầu
             rec = {
                 "op": op,
                 "ticket_id": tid,
@@ -355,7 +358,7 @@ def write_transcripts(con: duckdb.DuckDBPyConnection, path: pathlib.Path) -> int
 
 
 def write_small_files(con: duckdb.DuckDBPyConnection, out_dir: pathlib.Path) -> int:
-    """Mìn 4: bãi Parquet 5.000 file nhỏ, không phân vùng, thứ tự ngẫu nhiên."""
+    """Nhiệm vụ 4: dataset Parquet 5.000 file nhỏ, không partition, thứ tự ngẫu nhiên."""
     import shutil
 
     shutil.rmtree(out_dir, ignore_errors=True)
@@ -403,6 +406,7 @@ def write_expected(con: duckdb.DuckDBPyConnection) -> dict:
 
 # ---------------------------------------------------------------- main
 def main() -> int:
+    extra = "--extra" in sys.argv
     t0 = time.time()
     con = duckdb.connect()  # in-memory, chỉ dùng để sinh dữ liệu
     con.execute("set threads to 4")
@@ -416,8 +420,10 @@ def main() -> int:
     n_ev = write_events(con, HERE / "events.jsonl")
     log("ghi seed/transcripts.jsonl…")
     n_tr = write_transcripts(con, HERE / "transcripts.jsonl")
-    log(f"ghi data/gold_events/ ({N_GOLD_EVENT_FILES} file nhỏ)…")
-    n_files = write_small_files(con, ROOT / "data" / "gold_events")
+    n_files = 0
+    if extra:
+        log(f"ghi data/gold_events/ ({N_GOLD_EVENT_FILES} file nhỏ)…")
+        n_files = write_small_files(con, ROOT / "data" / "gold_events")
 
     exp = write_expected(con)
 
@@ -425,7 +431,8 @@ def main() -> int:
     print(f"  CDC rows        : {n_cdc:>9,}")
     print(f"  events          : {n_ev:>9,}")
     print(f"  transcripts     : {n_tr:>9,}")
-    print(f"  parquet files   : {n_files:>9,}")
+    if n_files:
+        print(f"  parquet files   : {n_files:>9,}")
     print(f"  expected/       : {json.dumps({k: v for k, v in exp.items() if not k.startswith('_')})}")
     print(f"  xong sau {time.time() - t0:.1f}s")
     return 0

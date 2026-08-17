@@ -15,96 +15,70 @@
 
 </details>
 
-Tổng kết: **… / 5 tiêu chí đạt**
+Tổng kết: **… / 4 tiêu chí đạt**
 
 ---
 
-## 1 · Bảng training phình lên sau mỗi lần chạy
+## 1 · Kích thước bảng training tăng sau mỗi lần chạy
 
 | | |
 |---|---|
 | **Triệu chứng** | |
-| **Nguyên nhân gốc** | |
-| **Cách sửa** | *(file + thay đổi)* |
+| **Nguyên nhân** | |
+| **Cách khắc phục** | *(file + thay đổi)* |
 | **Bằng chứng** | trước: … hàng · sau: … hàng · checksum 3 lượt: … |
 
 ---
 
-## 2 · Thiếu hàng, không ai biết
+## 2 · Bảng đặc trưng theo ngày thiếu hàng ở các ngày quá khứ
 
 | | |
 |---|---|
 | **Triệu chứng** | |
 | **P99 độ trễ đo được** | **… ngày** *(bắt buộc)* |
 | **Lookback đã chọn** | … ngày — vì … |
-| **Nguyên nhân gốc** | |
-| **Cách sửa** | |
+| **Nguyên nhân** | |
+| **Cách khắc phục** | |
 | **Bằng chứng** | trước: … hàng · sau: … hàng |
 
-Câu hỏi thêm: vì sao chọn P99 chứ không chọn `max`? Trả giá gì?
+Vì sao chọn P99 làm căn cứ thay vì `max`? Chi phí của mỗi lựa chọn là gì?
 
 > …
 
 ---
 
-## 3 · Schema đổi giữa chừng
+## 3 · Kiểu dữ liệu cột priority thay đổi giữa chu kỳ
 
 | | |
 |---|---|
 | **Triệu chứng** | |
-| **Nguyên nhân gốc** | |
+| **Nguyên nhân** | |
 | **Ba nhóm giá trị `priority` và cách xử lý từng nhóm** | |
-| **Cách sửa** | |
+| **Cách khắc phục** | |
 | **Bằng chứng** | `quarantine_tickets` = … hàng · `dbt test` … pass |
 
-Câu hỏi thiết kế: chặn ở Bronze hay Silver? Vì sao **không** để pipeline sập
-khi gặp bản ghi lỗi?
+Câu hỏi thiết kế: nên chặn ở tầng Bronze hay Silver? Vì sao **không** để
+pipeline dừng khi gặp bản ghi lỗi?
 
 > …
 
 ---
 
-## 4 · Dashboard chậm
+## 4 · *(mở rộng, không bắt buộc)* Bài trong EXTRA.md
 
 | | |
 |---|---|
-| **Triệu chứng** | |
-| **Nguyên nhân gốc** | |
-| **Cách sửa** | *(bố cục lưu trữ + truy vấn)* |
-
-| Chỉ số | Trước | Sau | Tỷ lệ |
-|---|---|---|---|
-| `rows scanned` | | | …× |
-| số file | | | |
-| `result hash` | | | phải giống nhau |
-
-Vì sao đo `rows scanned` chứ không đo thời gian?
-
-> …
+| **Bài đã làm** | A / B / không làm |
+| **Nguyên nhân** | |
+| **Cách khắc phục** | |
+| **Bằng chứng** | |
 
 ---
 
-## 5 · *(mở rộng)* Consumer và sự cố giữa lô
+## 5 · Tổng kết
 
-| | |
-|---|---|
-| **Kịch bản gốc cho ra** | mất … hàng / trùng … hàng |
-| **Nguyên nhân gốc** | |
-| **Cách sửa** | |
-| **Kết quả `make crash-test`** | |
-
-`DO UPDATE` khác `DO NOTHING` ở đâu khi message được phát lại với nội dung
-đã đổi?
-
-> …
-
----
-
-## 6 · Một dòng cho mỗi bài học
-
-| Nhiệm vụ | Nếu gặp lại hệ thống lạ, tôi sẽ kiểm tra điều này đầu tiên |
+| Nhiệm vụ | Khi tiếp nhận một hệ thống chưa quen, tôi sẽ kiểm tra điều này trước tiên |
 |---|---|
 | 1 | |
 | 2 | |
 | 3 | |
-| 4 | |

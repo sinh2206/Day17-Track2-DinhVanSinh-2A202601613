@@ -1,28 +1,51 @@
 #!/usr/bin/env python3
-"""Nén và bố trí lại bãi Parquet của dashboard — NHIỆM VỤ 4.  ⚠️ CHƯA VIẾT
+"""Tái cấu trúc dataset Parquet của dashboard — NHIỆM VỤ 4.  CHƯA CÓ LOGIC.
 
-Hiện trạng: `data/gold_events/` có 5.000 file, mỗi file vài chục KB, không
-phân vùng, thứ tự hàng ngẫu nhiên.
+Hiện trạng: `data/gold_events/` gồm 5.000 file, mỗi file vài chục KB, không
+partition, thứ tự hàng ngẫu nhiên.
 
-Việc của bạn: đọc toàn bộ bãi cũ, ghi ra bãi mới có bố cục tốt hơn, rồi
-sửa `queries/dashboard.sql` để trỏ vào bãi mới.
+Yêu cầu: đọc toàn bộ dataset cũ, ghi ra dataset mới có layout hợp lý hơn, sau đó cập
+nhật `queries/dashboard.sql` để trỏ vào dataset mới.
 
-    python tools/compact.py            # ghi ra bãi mới
-    python tools/explain.py            # đo lại
+    python tools/compact.py       # ghi dataset mới
+    python tools/explain.py       # đo lại và so với baseline
 
-Gợi ý — trả lời ba câu này trước khi gõ code:
+KHUNG THỰC HIỆN
 
-    1. Truy vấn trong queries/dashboard.sql lọc theo cột nào?
-    2. Cột đó có xuất hiện trong đường dẫn file không?
-    3. Nếu ghi mỗi ngày một thư mục, engine có cần mở 5.000 file nữa không?
+    COPY (
+        SELECT *
+        FROM   read_parquet('data/gold_events/*.parquet')
+        ORDER  BY <cột A>, <cột B>
+    ) TO 'data/gold_events_v2' (
+        FORMAT          parquet,
+        PARTITION_BY    (<cột partition>),
+        OVERWRITE_OR_IGNORE,
+        ROW_GROUP_SIZE  <?>
+    )
 
-Khung sẵn có bên dưới. Xem GUIDE.md mục "Nhiệm vụ 4" nếu cần pseudo-code.
+Ba quyết định, mỗi quyết định cần một lý do viết được ra giấy:
+
+  <cột partition>   Engine chỉ bỏ qua được file mà nó biết là vô ích TRƯỚC khi
+                    mở file. Thông tin đó đến từ đường dẫn. Vậy cột nào của
+                    truy vấn dashboard nên xuất hiện trong tên thư mục? Cột đó
+                    có bao nhiêu giá trị phân biệt — tức bao nhiêu thư mục?
+                    Partition theo cột có 650 giá trị thì hệ quả là gì?
+
+  <cột A>, <cột B>  Thứ tự hàng trong file quyết định thống kê min/max của mỗi
+                    row group có ích hay vô dụng. Sắp thế nào để các hàng cùng
+                    một khách hàng nằm liền nhau?
+
+  ROW_GROUP_SIZE    Mặc định 122.880 hàng. Một ngày có khoảng bao nhiêu hàng?
+                    Nếu cả ngày gói gọn trong MỘT row group thì min/max của
+                    row group đó phủ những gì, và còn tác dụng lọc không?
+
+Sau khi chạy xong, kiểm tra lại bằng `python tools/explain.py`: `rows scanned`
+phải giảm, `files` phải giảm, và `result hash` phải GIỮ NGUYÊN.
 """
 
 from __future__ import annotations
 
 import pathlib
-import shutil
 import sys
 
 import duckdb
@@ -40,29 +63,27 @@ def main() -> int:
     n_src = len(list(SRC.glob("*.parquet")))
     print(f"  nguồn : {SRC}  ({n_src:,} file)")
 
-    if n_src == 0:
-        raise SystemExit(f"Không tìm thấy Parquet nguồn trong {SRC}")
+    # TODO(nhiệm vụ 4): hiện thực khung COPY ... TO ... ở phần docstring.
+    #
+    #   con.execute(f"""
+    #       copy (
+    #           select * from read_parquet('{SRC}/*.parquet')
+    #           order by ...
+    #       ) to '{DST}' (
+    #           format parquet,
+    #           partition_by (...),
+    #           overwrite_or_ignore,
+    #           row_group_size ...
+    #       )
+    #   """)
+    #
+    # Sau đó kiểm tra không mất hàng nào:
+    #
+    #   assert <số row dataset cũ> == <số row dataset mới>
 
-    # Tạo lại đích để lần chạy sau không giữ file/partition cũ.
-    shutil.rmtree(DST, ignore_errors=True)
-
-    con.execute(f"""
-        copy (
-            select *
-            from read_parquet('{SRC}/*.parquet')
-            order by event_date, customer_name
-        ) to '{DST}' (
-            format parquet,
-            partition_by (event_date),
-            overwrite_or_ignore,
-            row_group_size 8192
-        )
-    """)
-
-    n_dst = len(list(DST.rglob("*.parquet")))
-    print(f"  đích   : {DST}  ({n_dst:,} file)")
-    print("  đã partition theo event_date, sort theo customer_name, row_group_size=8192.\n")
-    con.close()
+    print("\n  tools/compact.py chưa được hiện thực — đây là nhiệm vụ 4.")
+    print("  Mở file này, đọc phần KHUNG THỰC HIỆN ở đầu file và điền vào TODO.")
+    print("  Hướng dẫn từng bước: GUIDE.md mục 4.\n")
     return 0
 
 
