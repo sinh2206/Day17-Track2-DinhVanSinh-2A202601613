@@ -7,9 +7,9 @@
 ## 0 · Kết quả `make verify`
 
 ```text
-run 1/3 … 72.0s
-run 2/3 … 70.3s
-run 3/3 … 70.6s
+run 1/3 … 71.2s
+run 2/3 … 70.6s
+run 3/3 … 72.2s
 
 BẢNG                  ỔN ĐỊNH          SỐ HÀNG     KỲ VỌNG
 gold_training_set     ✓ ok              12,480      12,480
@@ -27,15 +27,12 @@ dbt test                                    ✓ 11/11 pass
 silver_tickets.priority ∈ 1..4, không NULL  ✓ sạch
 quarantine_tickets đúng số bản ghi lỗi      ✓ 312 / 312
 gold_training_set: 1 hàng / 1 ticket        ✓ không lặp
-dashboard rows scanned                      ✗ 5,000,000 → 31,262 (159.9×, cần ≥ 10×)
+dashboard rows scanned                      ✓ 5,000,000 → 9,324 (536.3×, cần ≥ 10×)
   số file parquet                           ✓ 5,000 → 14
-  kết quả truy vấn không đổi                ✗
+  kết quả truy vấn không đổi                ✓
 DAG: catchup / max_active_runs              ✓ False / 1
 TỔNG KẾT: 4/4 tiêu chí đạt
 ```
-
-Hai dòng dashboard là bài mở rộng A; kết quả hash không giữ nguyên nên không
-được nhận là bằng chứng thưởng và không ảnh hưởng bốn tiêu chí bắt buộc.
 
 ---
 
@@ -73,12 +70,29 @@ P99 là mốc vận hành có chi phí tính lại hữu hạn; dùng `max` dễ
 
 Bronze giữ nguyên payload để audit; Silver là ranh giới contract. Không dừng cả pipeline vì 312 record lỗi: chúng được đưa vào hàng đợi quarantine để xử lý, còn dữ liệu lành vẫn tới downstream.
 
-## 4 · *(mở rộng, không bắt buộc)* Bài trong `EXTRA.md`
+## 4 · Bài mở rộng trong `EXTRA.md`
+
+### A — Query dashboard chậm
 
 | | |
 |---|---|
-| **Bài đã làm** | Không làm ở phiên bản rút gọn hiện tại; không tính vào điểm cơ bản. |
-| **Bằng chứng** | `make verify` đạt 4/4 tiêu chí bắt buộc. |
+| **Triệu chứng** | 5.000 file Parquet nhỏ buộc dashboard mở toàn bộ bãi dữ liệu; predicate ngày không được hỗ trợ bởi đường dẫn partition. |
+| **Nguyên nhân** | Small-file problem cộng với cột lọc không nằm trong path và layout không được sắp xếp theo filter. |
+| **Cách khắc phục** | `tools/compact.py` ghi sang `data/gold_events_v2/`, partition theo `event_date`, sort `event_date, customer_name`, `ROW_GROUP_SIZE 8192`; query bật `hive_partitioning` và lọc `event_date` dạng sargable. |
+| **Bằng chứng** | `rows scanned`: 5.000.000 → 9.324 (**536,3×**); rows on disk 130.683 → 130.683; files 5.000 → 14; result hash `4379e4c5d9f3` giữ nguyên. |
+
+### B — Consumer gặp sự cố giữa lô
+
+| | |
+|---|---|
+| **Triệu chứng** | Commit offset trước khi ghi là at-most-once: chết ở batch 7 có thể mất 500 message. |
+| **Nguyên nhân** | Offset được ghi nhận trước khi sink hoàn tất; retry không thể đọc lại batch đã commit. Khi chuyển ghi trước–commit sau, retry trở thành at-least-once và có thể replay. |
+| **Cách khắc phục** | `event_id` là `PRIMARY KEY`; `write_batch` dùng `ON CONFLICT(event_id) DO UPDATE`; thứ tự là `write_batch → maybe_crash → consumer.commit()`. |
+| **Bằng chứng** | Sau crash offset = 3.000; restart kết thúc ở 20.000 hàng / 20.000 `event_id`, không mất, không trùng: **BÀI MỞ RỘNG B: ĐẠT ✓**. |
+
+`DO UPDATE` cập nhật payload nếu message replay đã đổi nội dung; `DO NOTHING`
+giữ payload cũ. Chọn `DO UPDATE` để sink phản ánh message mới nhất trong khi
+vẫn idempotent theo `event_id`.
 
 ## 5 · Tổng kết
 

@@ -46,6 +46,7 @@ phải giảm, `files` phải giảm, và `result hash` phải GIỮ NGUYÊN.
 from __future__ import annotations
 
 import pathlib
+import shutil
 import sys
 
 import duckdb
@@ -63,27 +64,39 @@ def main() -> int:
     n_src = len(list(SRC.glob("*.parquet")))
     print(f"  nguồn : {SRC}  ({n_src:,} file)")
 
-    # TODO(nhiệm vụ 4): hiện thực khung COPY ... TO ... ở phần docstring.
-    #
-    #   con.execute(f"""
-    #       copy (
-    #           select * from read_parquet('{SRC}/*.parquet')
-    #           order by ...
-    #       ) to '{DST}' (
-    #           format parquet,
-    #           partition_by (...),
-    #           overwrite_or_ignore,
-    #           row_group_size ...
-    #       )
-    #   """)
-    #
-    # Sau đó kiểm tra không mất hàng nào:
-    #
-    #   assert <số row dataset cũ> == <số row dataset mới>
+    if n_src == 0:
+        raise SystemExit(f"Không tìm thấy Parquet nguồn trong {SRC}")
 
-    print("\n  tools/compact.py chưa được hiện thực — đây là nhiệm vụ 4.")
-    print("  Mở file này, đọc phần KHUNG THỰC HIỆN ở đầu file và điền vào TODO.")
-    print("  Hướng dẫn từng bước: GUIDE.md mục 4.\n")
+    n_rows_src = con.execute(
+        f"select count(*) from read_parquet('{SRC}/*.parquet')"
+    ).fetchone()[0]
+
+    # Dọn đích trước để các partition của lần chạy trước không bị giữ lại.
+    shutil.rmtree(DST, ignore_errors=True)
+
+    con.execute(f"""
+        copy (
+            select *
+            from read_parquet('{SRC}/*.parquet')
+            order by event_date, customer_name
+        ) to '{DST}' (
+            format parquet,
+            partition_by (event_date),
+            overwrite_or_ignore,
+            row_group_size 8192
+        )
+    """)
+
+    n_dst = len(list(DST.rglob("*.parquet")))
+    n_rows_dst = con.execute(
+        f"select count(*) from read_parquet('{DST}/**/*.parquet', hive_partitioning=true)"
+    ).fetchone()[0]
+    assert n_rows_src == n_rows_dst, (n_rows_src, n_rows_dst)
+
+    print(f"  đích   : {DST}  ({n_dst:,} file)")
+    print(f"  rows   : {n_rows_src:,} → {n_rows_dst:,}")
+    print("  đã partition theo event_date, sort theo customer_name, row_group_size=8192.\n")
+    con.close()
     return 0
 
 
